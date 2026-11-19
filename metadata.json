@@ -1,0 +1,6 @@
+{
+  "name": "DEX STORES — Commercial Storefront",
+  "description": "Customer-facing commercial e-commerce storefront for DEX STORES featuring automotive replacement parts, scale model & remote control vehicles, and essential equipment with direct WhatsApp ordering.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
