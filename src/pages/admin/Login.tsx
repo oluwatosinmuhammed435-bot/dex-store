@@ -26,9 +26,16 @@ export const AdminLogin: React.FC = () => {
     setErrorMessage(null);
     setIsSubmitting(true);
 
+    console.log('[DEX_AUTH_DIAG][AdminLogin] Submitting login form for:', email.trim());
     const { error, isAdmin: userIsAdmin } = await signInWithEmail(email.trim(), password);
 
     setIsSubmitting(false);
+
+    console.log('[DEX_AUTH_DIAG][AdminLogin] signInWithEmail returned:', {
+      hasError: Boolean(error),
+      errorMessage: error?.message,
+      userIsAdmin,
+    });
 
     if (error) {
       setErrorMessage(error.message);
@@ -38,12 +45,14 @@ export const AdminLogin: React.FC = () => {
     if (!userIsAdmin) {
       // User authenticated, but not authorized as admin.
       // Navigate to /admin where AdminGuard will display the explicit RBAC Access Denied screen.
+      console.warn('[DEX_AUTH_DIAG][AdminLogin] userIsAdmin is FALSE -> Navigating to /admin for Access Denied screen');
       navigate('/admin');
       return;
     }
 
     // Success — redirect to destination or dashboard
     const target = (location.state as { from?: { pathname?: string } })?.from?.pathname || '/admin';
+    console.log('[DEX_AUTH_DIAG][AdminLogin] userIsAdmin is TRUE -> Navigating to:', target);
     navigate(target, { replace: true });
   };
 

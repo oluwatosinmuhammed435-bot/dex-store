@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { supabase } from '../../lib/supabase';
 import { CATEGORIES } from '../../data/storeData';
 import {
   generateResponsiveImageVariants,
@@ -16,12 +17,42 @@ export const AdminProductForm: React.FC = () => {
   const [stock, setStock] = useState('');
   const [featured, setFeatured] = useState(false);
 
+  // Categories fetched from Supabase with fallback to static CATEGORIES
+  const [categoriesList, setCategoriesList] = useState<Array<{ id?: string; name: string; slug: string }>>(CATEGORIES);
+
   // Image optimization state
   const [rawImageFile, setRawImageFile] = useState<File | null>(null);
   const [optimizedPackage, setOptimizedPackage] = useState<ResponsiveImagePackage | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [optimizationError, setOptimizationError] = useState<string | null>(null);
+
+  // Form submission state
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  // Fetch live categories from Supabase on mount
+  useEffect(() => {
+    let isMounted = true;
+    async function fetchCategories() {
+      try {
+        const { data, error } = await supabase
+          .from('categories')
+          .select('id, name, slug')
+          .eq('is_active', true)
+          .order('name');
+        if (!error && data && data.length > 0 && isMounted) {
+          setCategoriesList(data);
+        }
+      } catch (err) {
+        console.warn('Could not load categories from Supabase, using defaults:', err);
+      }
+    }
+    fetchCategories();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Clean up object URLs on unmount
   useEffect(() => {
@@ -43,6 +74,7 @@ export const AdminProductForm: React.FC = () => {
     setRawImageFile(file);
     setOptimizedPackage(null);
     setOptimizationError(null);
+    setSaveError(null);
     setIsOptimizing(true);
 
     try {
@@ -73,52 +105,158 @@ export const AdminProductForm: React.FC = () => {
     setOptimizationError(null);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  function generateSlug(text: string): string {
+    const base = text
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)+/g, '');
+    const suffix = Math.random().toString(36).substring(2, 7);
+    return `${base || 'product'}-${suffix}`;
+  }
+
+  function generateReference(text: string): string {
+    const prefix = text
+      .trim()
+      .slice(0, 3)
+      .toUpperCase()
+      .replace(/[^A-Z]/g, 'PRD');
+    const rand = Math.floor(1000 + Math.random() * 9000);
+    return `DEX-${prefix || 'PRD'}-${rand}`;
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSaveError(null);
 
     if (isOptimizing) {
-      alert('Please wait for image optimization to complete before saving.');
+      setSaveError('Please wait for image optimization to complete before saving.');
       return;
     }
 
-    // Structured payload ready for Phase 3 Supabase Storage and database persistence
-    const productPayload = {
-      name,
-      description,
-      priceNgn: Number(price),
-      category,
-      stock: Number(stock),
-      featured,
-      rawImage: rawImageFile ? { name: rawImageFile.name, size: rawImageFile.size } : null,
-      optimizedVariants: optimizedPackage
-        ? {
-          thumbnail: {
-            fileName: optimizedPackage.thumbnail.file.name,
-            sizeBytes: optimizedPackage.thumbnail.sizeBytes,
-            dimensions: `${optimizedPackage.thumbnail.width}x${optimizedPackage.thumbnail.height}`,
-          },
-          card: {
-            fileName: optimizedPackage.card.file.name,
-            sizeBytes: optimizedPackage.card.sizeBytes,
-            dimensions: `${optimizedPackage.card.width}x${optimizedPackage.card.height}`,
-          },
-          detail: {
-            fileName: optimizedPackage.detail.file.name,
-            sizeBytes: optimizedPackage.detail.sizeBytes,
-            dimensions: `${optimizedPackage.detail.width}x${optimizedPackage.detail.height}`,
-          },
-          full: {
-            fileName: optimizedPackage.full.file.name,
-            sizeBytes: optimizedPackage.full.sizeBytes,
-            dimensions: `${optimizedPackage.full.width}x${optimizedPackage.full.height}`,
-          },
-        }
-        : null,
-    };
+    if (!optimizedPackage || !rawImageFile) {
+      setSaveError('Please upload a product image.');
+      return;
+    }
 
-    console.log('Product Form Submitted with Optimized Images:', productPayload);
-    alert('Product and optimized responsive image variants prepared successfully! (Local state prototype).');
-    navigate('/admin/products');
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      setSaveError('Product name is required.');
+      return;
+    }
+
+    const parsedPrice = Number(price);
+    if (isNaN(parsedPrice) || parsedPrice < 0) {
+      setSaveError('Please enter a valid price (greater than or equal to 0).');
+      return;
+    }
+
+    const parsedStock = Number(stock);
+    if (isNaN(parsedStock) || parsedStock < 0 || !Number.isInteger(parsedStock)) {
+      setSaveError('Please enter a valid non-negative integer for stock quantity.');
+      return;
+    }
+
+    if (!category) {
+      setSaveError('Please select a product category.');
+      return;
+    }
+
+    setIsSaving(true);
+    const uploadedPaths: string[] = [];
+
+    try {
+      const productSlug = generateSlug(trimmedName);
+      const productRef = generateReference(trimmedName);
+      const storageBase = `products/${productSlug}-${Date.now()}`;
+
+      // 1. Upload the 4 responsive WebP variants to product-images Storage bucket
+      const variantsToUpload = [
+        { key: 'thumbnail', variant: optimizedPackage.thumbnail, suffix: 'thumb' },
+        { key: 'card', variant: optimizedPackage.card, suffix: 'card' },
+        { key: 'detail', variant: optimizedPackage.detail, suffix: 'detail' },
+        { key: 'full', variant: optimizedPackage.full, suffix: 'full' },
+      ];
+
+      const variantPublicUrls: Record<string, string> = {};
+
+      for (const item of variantsToUpload) {
+        const filePath = `${storageBase}/${item.suffix}.webp`;
+        const { error: uploadError } = await supabase.storage
+          .from('product-images')
+          .upload(filePath, item.variant.blob, {
+            contentType: 'image/webp',
+            cacheControl: '31536000',
+            upsert: true,
+          });
+
+        if (uploadError) {
+          throw new Error(`Failed to upload ${item.key} image variant: ${uploadError.message}`);
+        }
+
+        uploadedPaths.push(filePath);
+
+        const { data: urlData } = supabase.storage
+          .from('product-images')
+          .getPublicUrl(filePath);
+
+        variantPublicUrls[item.key] = urlData.publicUrl;
+      }
+
+      // Build string array of image URLs conforming to live database text[] column
+      const galleryUrls: string[] = [
+        variantPublicUrls.full,
+        variantPublicUrls.detail,
+        variantPublicUrls.card,
+        variantPublicUrls.thumbnail,
+      ].filter(Boolean);
+
+      // Resolve category UUID if one exists
+      const selectedCategory = categoriesList.find(c => c.id === category || c.name === category || c.slug === category);
+      const isValidUuid = selectedCategory?.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(selectedCategory.id);
+      const categoryId = isValidUuid ? selectedCategory!.id : null;
+
+      // 2. Insert product record into Supabase public.products matching LIVE database columns
+      const productRow = {
+        name: trimmedName,
+        slug: productSlug,
+        reference: productRef,
+        category_id: categoryId,
+        price_ngn: parsedPrice,
+        stock_quantity: parsedStock,
+        availability: parsedStock > 0 ? 'In Stock' : 'Out of Stock',
+        featured: featured,
+        description: description.trim() || null,
+        image_url: variantPublicUrls.card || variantPublicUrls.full || null,
+        gallery: galleryUrls,
+        specifications: {},
+        is_active: true,
+      };
+
+      const { error: insertError } = await supabase
+        .from('products')
+        .insert(productRow);
+
+      if (insertError) {
+        // Safe cleanup: remove uploaded images to prevent orphaned storage objects
+        if (uploadedPaths.length > 0) {
+          try {
+            await supabase.storage.from('product-images').remove(uploadedPaths);
+          } catch (cleanupErr) {
+            console.warn('Failed to clean up uploaded images after insert failure:', cleanupErr);
+          }
+        }
+        throw new Error(`Database error saving product: ${insertError.message}`);
+      }
+
+      // 3. Successful creation — redirect to Admin Products list
+      navigate('/admin/products');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'An unexpected error occurred while saving the product.';
+      setSaveError(message);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const formatBytes = (bytes: number) => {
@@ -140,6 +278,24 @@ export const AdminProductForm: React.FC = () => {
           <p className="text-sm text-[#69746D]">Configure product details with automatic WebP image compression</p>
         </div>
       </header>
+
+      {/* Global Save Error Banner */}
+      {saveError && (
+        <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-md text-red-700 text-sm">
+          <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="font-medium">Failed to Save Product</p>
+            <p className="text-xs">{saveError}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSaveError(null)}
+            className="text-red-500 hover:text-red-700"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="bg-white p-6 rounded-lg shadow-sm border border-[#E0E0E0] space-y-5">
         {/* Product Name */}
@@ -176,6 +332,7 @@ export const AdminProductForm: React.FC = () => {
               type="number"
               required
               min="0"
+              step="any"
               value={price}
               onChange={e => setPrice(e.target.value)}
               placeholder="e.g. 185000"
@@ -188,6 +345,7 @@ export const AdminProductForm: React.FC = () => {
               type="number"
               required
               min="0"
+              step="1"
               value={stock}
               onChange={e => setStock(e.target.value)}
               placeholder="e.g. 25"
@@ -206,8 +364,8 @@ export const AdminProductForm: React.FC = () => {
             className="w-full border rounded-md p-2.5 focus:outline-none focus:ring-2 focus:ring-[#123D2A] text-sm"
           >
             <option value="">Select category…</option>
-            {CATEGORIES.map(cat => (
-              <option key={cat.slug} value={cat.name}>{cat.name}</option>
+            {categoriesList.map(cat => (
+              <option key={cat.id || cat.slug} value={cat.id || cat.name}>{cat.name}</option>
             ))}
           </select>
         </div>
@@ -248,7 +406,7 @@ export const AdminProductForm: React.FC = () => {
             </div>
           )}
 
-          {/* Error Message */}
+          {/* Image Optimization Error Message */}
           {optimizationError && (
             <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-md text-red-700 text-sm">
               <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
@@ -354,10 +512,18 @@ export const AdminProductForm: React.FC = () => {
         {/* Submit */}
         <button
           type="submit"
-          disabled={isOptimizing}
+          disabled={isOptimizing || isSaving}
           className="flex items-center gap-2 bg-[#123D2A] text-white px-5 py-2.5 rounded-md hover:bg-[#0f2e1e] transition text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <Save className="h-4 w-4" /> Save Product
+          {isSaving ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" /> Saving Product…
+            </>
+          ) : (
+            <>
+              <Save className="h-4 w-4" /> Save Product
+            </>
+          )}
         </button>
       </form>
     </div>

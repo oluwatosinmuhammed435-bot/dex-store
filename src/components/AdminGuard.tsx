@@ -1,6 +1,7 @@
 import React from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { checkIsAdmin } from '../lib/supabase';
 import { ShieldAlert, Loader2, LogOut, ArrowLeft } from 'lucide-react';
 
 /**
@@ -15,6 +16,19 @@ export const AdminGuard: React.FC = () => {
   const { user, isAdmin, isLoading, isConfigured, signOut } = useAuth();
   const location = useLocation();
 
+  // Safe live diagnostic trace
+  console.log('[DEX_AUTH_DIAG][AdminGuard] Render evaluation:', {
+    path: location.pathname,
+    isLoading,
+    isConfigured,
+    hasUser: Boolean(user),
+    userEmail: user?.email,
+    authContextIsAdmin: isAdmin,
+    liveCheckIsAdmin: checkIsAdmin(user),
+    app_metadata: user?.app_metadata,
+    user_metadata: user?.user_metadata,
+  });
+
   // 1. Loading state while checking session
   if (isLoading) {
     return (
@@ -28,14 +42,17 @@ export const AdminGuard: React.FC = () => {
 
   // 2. Unauthenticated check -> Redirect to login
   if (!user) {
+    console.log('[DEX_AUTH_DIAG][AdminGuard] No user -> Redirecting to /admin/login');
     return <Navigate to="/admin/login" state={{ from: location }} replace />;
   }
 
   // 3. Authenticated BUT not an authorized Administrator (Part B requirement)
   if (!isAdmin) {
+    const liveAdminVerdict = checkIsAdmin(user);
+
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#F5FAF5] p-4">
-        <div className="bg-white p-8 rounded-xl shadow-md max-w-md w-full border border-red-200 text-center space-y-4">
+        <div className="bg-white p-8 rounded-xl shadow-md max-w-lg w-full border border-red-200 text-center space-y-4">
           <div className="w-14 h-14 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto">
             <ShieldAlert className="w-8 h-8" />
           </div>
@@ -54,6 +71,17 @@ export const AdminGuard: React.FC = () => {
               DEX STORES enforces strict Role-Based Access Control (RBAC). Administrator rights
               must be provisioned in <code className="font-mono bg-red-100 px-1 rounded">app_metadata.role = 'admin'</code>.
             </p>
+          </div>
+
+          {/* Diagnostic Inspection Box (Safe, No Tokens or Secrets) */}
+          <div className="p-3 bg-gray-900 text-green-400 font-mono text-[11px] rounded-md text-left space-y-1 overflow-x-auto border border-gray-800">
+            <p className="font-bold text-white border-b border-gray-700 pb-1">
+              [DIAGNOSTIC] Live Metadata Inspector
+            </p>
+            <p><span className="text-gray-400">AuthContext isAdmin:</span> <span className={isAdmin ? 'text-green-400' : 'text-red-400'}>{String(isAdmin)}</span></p>
+            <p><span className="text-gray-400">Live checkIsAdmin(user):</span> <span className={liveAdminVerdict ? 'text-green-400' : 'text-red-400'}>{String(liveAdminVerdict)}</span></p>
+            <p><span className="text-gray-400">app_metadata:</span> {JSON.stringify(user.app_metadata || {})}</p>
+            <p><span className="text-gray-400">user_metadata:</span> {JSON.stringify(user.user_metadata || {})}</p>
           </div>
 
           <div className="pt-2 flex flex-col sm:flex-row gap-2">
@@ -76,5 +104,6 @@ export const AdminGuard: React.FC = () => {
   }
 
   // 4. Authenticated & Authorized Administrator
+  console.log('[DEX_AUTH_DIAG][AdminGuard] Access GRANTED to Administrator:', user.email);
   return <Outlet />;
 };
