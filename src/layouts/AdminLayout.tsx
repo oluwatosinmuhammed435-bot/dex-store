@@ -1,22 +1,27 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import AdminSidebar from '../components/AdminSidebar';
 import AdminTopNav from '../components/AdminTopNav';
 
 /**
  * Shell layout for protected administrator views.
- * Contains the fixed navigation sidebar and top bar.
+ * Features a responsive mobile drawer navigation and sticky top bar.
  */
 export const AdminLayout: React.FC = () => {
+  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
+
   return (
-    <div className="flex min-h-screen bg-[#F5FAF5] text-[#202923]">
-      {/* Persistent Admin Sidebar */}
-      <AdminSidebar />
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col lg:flex-row antialiased">
+      {/* Admin Sidebar — desktop fixed rail & mobile slide-out drawer */}
+      <AdminSidebar
+        isOpen={isMobileDrawerOpen}
+        onClose={() => setIsMobileDrawerOpen(false)}
+      />
 
       {/* Main Content Area */}
-      <div className="flex flex-col flex-1 min-w-0">
-        <AdminTopNav />
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto">
+      <div className="flex-1 flex flex-col min-w-0 min-h-screen">
+        <AdminTopNav onOpenMenu={() => setIsMobileDrawerOpen(true)} />
+        <main className="flex-1 p-3.5 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
           <Outlet />
         </main>
       </div>

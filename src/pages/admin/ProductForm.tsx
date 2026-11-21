@@ -268,36 +268,45 @@ export const AdminProductForm: React.FC = () => {
   };
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
-      <header className="flex items-center gap-4">
-        <Link to="/admin/products" className="p-2 rounded-full hover:bg-[#E6F4E9] transition">
-          <ArrowLeft className="h-5 w-5 text-[#202923]" />
+    <div className="max-w-3xl mx-auto space-y-4 sm:space-y-6">
+      <header className="flex items-center gap-3">
+        <Link
+          to="/admin/products"
+          className="p-2 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition min-h-[44px] min-w-[44px] flex items-center justify-center shrink-0"
+          aria-label="Back to Products"
+        >
+          <ArrowLeft className="h-5 w-5" />
         </Link>
         <div>
-          <h1 className="text-2xl font-bold text-[#202923]">Add New Product</h1>
-          <p className="text-sm text-[#69746D]">Configure product details with automatic WebP image compression</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">Add New Product</h1>
+          <p className="text-xs sm:text-sm text-slate-500">Configure product details with automatic WebP image compression</p>
         </div>
       </header>
 
       {/* Global Save Error Banner */}
       {saveError && (
-        <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-md text-red-700 text-sm">
+        <div className="flex items-start gap-2.5 p-3.5 bg-red-50 border border-red-200 rounded-xl text-red-700 text-xs sm:text-sm">
           <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
           <div className="flex-1">
-            <p className="font-medium">Failed to Save Product</p>
-            <p className="text-xs">{saveError}</p>
+            <p className="font-semibold">Failed to Save Product</p>
+            <p className="text-xs text-red-600 mt-0.5">{saveError}</p>
+            {saveError.includes('Bucket not found') && (
+              <p className="text-xs text-red-700 mt-2 p-2 bg-red-100/70 rounded border border-red-200 font-medium">
+                Note: In your Supabase Dashboard &gt; Storage, please create a public bucket named <code className="font-mono font-bold bg-white px-1 py-0.5 rounded">product-images</code>.
+              </p>
+            )}
           </div>
           <button
             type="button"
             onClick={() => setSaveError(null)}
-            className="text-red-500 hover:text-red-700"
+            className="text-red-400 hover:text-red-700 p-1 rounded"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="bg-white p-6 rounded-lg shadow-sm border border-[#E0E0E0] space-y-5">
+      <form onSubmit={handleSubmit} className="bg-white p-4 sm:p-6 rounded-xl shadow-xs border border-slate-200/80 space-y-4 sm:space-y-5">
         {/* Product Name */}
         <div>
           <label className="block text-sm font-medium text-[#202923] mb-1">Product Name</label>
@@ -498,22 +507,24 @@ export const AdminProductForm: React.FC = () => {
         </div>
 
         {/* Featured toggle */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5 py-1">
           <input
             id="featured"
             type="checkbox"
             checked={featured}
             onChange={e => setFeatured(e.target.checked)}
-            className="h-4 w-4 rounded border-gray-300 text-[#123D2A] focus:ring-[#123D2A]"
+            className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
           />
-          <label htmlFor="featured" className="text-sm text-[#202923]">Mark as Featured Product</label>
+          <label htmlFor="featured" className="text-xs sm:text-sm font-medium text-slate-700 cursor-pointer">
+            Mark as Featured Product (promoted on storefront rails)
+          </label>
         </div>
 
         {/* Submit */}
         <button
           type="submit"
           disabled={isOptimizing || isSaving}
-          className="flex items-center gap-2 bg-[#123D2A] text-white px-5 py-2.5 rounded-md hover:bg-[#0f2e1e] transition text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white px-5 py-3 rounded-lg transition text-xs sm:text-sm font-semibold shadow-xs disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px] w-full sm:w-auto"
         >
           {isSaving ? (
             <>

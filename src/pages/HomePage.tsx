@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, MessageCircle, ShoppingBag } from 'lucide-react';
 import {
@@ -7,23 +7,38 @@ import {
   PRODUCTS,
   PROMOTIONAL_BANNER,
   STORE_CONFIG,
+  type Product,
 } from '../data/storeData';
 import { CategoryCard } from '../components/CategoryCard';
 import { ProductCard } from '../components/ProductCard';
 import { ProductImage } from '../components/ProductImage';
 import { ProductCarouselRail } from '../components/ProductCarouselRail';
 import { buildWhatsAppGeneralUrl } from '../utils/catalogue';
+import { fetchStorefrontProducts } from '../utils/productService';
 import { useCart } from '../context/CartContext';
 
 export const HomePage: React.FC = () => {
   const { openCartDrawer, totalItems } = useCart();
+  const [products, setProducts] = useState<Product[]>(PRODUCTS);
 
-  const featuredProducts = PRODUCTS.filter((p) => p.featured);
-  const recentlyAddedProducts = [...PRODUCTS].sort(
+  useEffect(() => {
+    let isMounted = true;
+    fetchStorefrontProducts().then((liveProducts) => {
+      if (isMounted && liveProducts && liveProducts.length > 0) {
+        setProducts(liveProducts);
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const featuredProducts = products.filter((p) => p.featured);
+  const recentlyAddedProducts = [...products].sort(
     (a, b) => b.createdAtOrder - a.createdAtOrder
   );
-  const carPartsProducts = PRODUCTS.filter((p) => p.categorySlug === 'car-parts');
-  const toyAndUtilityProducts = PRODUCTS.filter(
+  const carPartsProducts = products.filter((p) => p.categorySlug === 'car-parts');
+  const toyAndUtilityProducts = products.filter(
     (p) => p.categorySlug === 'toy-cars' || p.categorySlug === 'other-products'
   );
 
@@ -141,7 +156,7 @@ export const HomePage: React.FC = () => {
           <ProductCarouselRail
             title="Featured Products — Slide to Browse"
             subtitle="Swipe left or right to inspect products and tap Add to Cart"
-            products={PRODUCTS}
+            products={products}
             viewAllLink="/shop"
             viewAllLabel="See All"
             headerBgClass="bg-[#123D2A] text-[#FFFFFF]"
@@ -218,7 +233,7 @@ export const HomePage: React.FC = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {CATEGORIES.map((category) => {
-              const count = PRODUCTS.filter((p) => p.categorySlug === category.slug).length;
+              const count = products.filter((p) => p.categorySlug === category.slug).length;
               return (
                 <CategoryCard
                   key={category.id}

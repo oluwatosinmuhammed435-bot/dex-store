@@ -1,11 +1,26 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
-import { CATEGORIES, PRODUCTS } from '../data/storeData';
+import { CATEGORIES, PRODUCTS, type Product } from '../data/storeData';
+import { fetchStorefrontProducts } from '../utils/productService';
 import { ProductImage } from '../components/ProductImage';
 import { ProductCarouselRail } from '../components/ProductCarouselRail';
 
 export const CategoriesPage: React.FC = () => {
+  const [products, setProducts] = useState<Product[]>(PRODUCTS);
+
+  useEffect(() => {
+    let isMounted = true;
+    fetchStorefrontProducts().then((liveProducts) => {
+      if (isMounted && liveProducts && liveProducts.length > 0) {
+        setProducts(liveProducts);
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   return (
     <div className="bg-[#FFFFFF]">
       <section className="bg-[#F8FAF8] border-b border-[#E5EBE6]">
@@ -28,7 +43,7 @@ export const CategoriesPage: React.FC = () => {
 
       <div className="max-w-[1200px] mx-auto px-3 sm:px-6 lg:px-8 py-10 space-y-12">
         {CATEGORIES.map((category) => {
-          const categoryProducts = PRODUCTS.filter(
+          const categoryProducts = products.filter(
             (p) => p.categorySlug === category.slug
           );
 

@@ -1,31 +1,75 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, MessageCircle, Minus, Plus, ShoppingCart } from 'lucide-react';
-import { PRODUCTS, STORE_CONFIG } from '../data/storeData';
+import { PRODUCTS, STORE_CONFIG, type Product } from '../data/storeData';
 import {
   buildWhatsAppOrderMessage,
   buildWhatsAppOrderUrl,
   formatNaira,
   getRelatedProducts,
 } from '../utils/catalogue';
+import { fetchProductBySlug, fetchStorefrontProducts } from '../utils/productService';
 import { ProductImage } from '../components/ProductImage';
 import { ProductCarouselRail } from '../components/ProductCarouselRail';
 import { useCart } from '../context/CartContext';
 
 export const ProductDetailsPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
-  const product = PRODUCTS.find((p) => p.slug === slug || p.id === slug);
+  const [product, setProduct] = useState<Product | null>(() =>
+    slug ? PRODUCTS.find((p) => p.slug === slug || p.id === slug) || null : null
+  );
+  const [allProducts, setAllProducts] = useState<Product[]>(PRODUCTS);
+  const [isLoading, setIsLoading] = useState(!product);
 
   const { addToCart, getItemQuantity } = useCart();
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [quantity, setQuantity] = useState(1);
+
+  useEffect(() => {
+    let isMounted = true;
+    if (!slug) return;
+
+    async function loadData() {
+      setIsLoading(true);
+      const [fetchedProduct, storeProducts] = await Promise.all([
+        fetchProductBySlug(slug!),
+        fetchStorefrontProducts(),
+      ]);
+
+      if (isMounted) {
+        if (fetchedProduct) {
+          setProduct(fetchedProduct);
+        }
+        if (storeProducts && storeProducts.length > 0) {
+          setAllProducts(storeProducts);
+        }
+        setIsLoading(false);
+      }
+    }
+
+    loadData();
+    return () => {
+      isMounted = false;
+    };
+  }, [slug]);
+
+  if (isLoading && !product) {
+    return (
+      <div className="max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8 py-20 text-center space-y-4">
+        <div className="animate-pulse flex flex-col items-center">
+          <div className="h-8 w-48 bg-slate-200 rounded mb-2"></div>
+          <div className="h-4 w-64 bg-slate-100 rounded"></div>
+        </div>
+      </div>
+    );
+  }
 
   if (!product) {
     return (
       <div className="max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8 py-20 text-center space-y-5">
         <h1 className="text-2xl font-bold text-[#202923]">Product Not Found</h1>
         <p className="text-sm text-[#69746D] max-w-md mx-auto">
-          The requested product could not be located in the DEX STORES sample catalogue.
+          The requested product could not be located in the DEX STORES catalogue.
         </p>
         <div>
           <Link
@@ -40,10 +84,20 @@ export const ProductDetailsPage: React.FC = () => {
     );
   }
 
-  const gallery =
+  const rawGallery =
     product.gallery && product.gallery.length > 0
       ? product.gallery
       : [{ url: product.image, caption: product.name }];
+
+  const gallery = rawGallery.map((item: any, idx: number) => {
+    if (typeof item === 'string') {
+      return { url: item, caption: `${product.name} view ${idx + 1}` };
+    }
+    return {
+      url: item?.url || product.image,
+      caption: item?.caption || `${product.name} view ${idx + 1}`,
+    };
+  });
 
   const activeGalleryItem = gallery[selectedImageIndex] ?? gallery[0];
   const currentInCart = getItemQuantity(product.id);
@@ -58,7 +112,7 @@ export const ProductDetailsPage: React.FC = () => {
 
   const whatsappOrderUrl = buildWhatsAppOrderUrl(orderPayload);
   const whatsappMessagePreview = buildWhatsAppOrderMessage(orderPayload);
-  const relatedProducts = getRelatedProducts(PRODUCTS, product, 6);
+  const relatedProducts = getRelatedProducts(allProducts, product, 6);
 
   const handleDecrement = () => {
     setQuantity((prev) => Math.max(1, prev - 1));

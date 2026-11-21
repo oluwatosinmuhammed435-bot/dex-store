@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { RotateCcw, Search, SlidersHorizontal } from 'lucide-react';
 import {
@@ -6,11 +6,13 @@ import {
   CategorySlug,
   PRODUCTS,
   STORE_CONFIG,
+  type Product,
 } from '../data/storeData';
 import {
   filterAndSortProducts,
   SortOption,
 } from '../utils/catalogue';
+import { fetchStorefrontProducts } from '../utils/productService';
 import { ProductCard } from '../components/ProductCard';
 
 const VALID_CATEGORIES: (CategorySlug | 'all')[] = [
@@ -29,6 +31,19 @@ const VALID_SORTS: SortOption[] = [
 
 export const CataloguePage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
+  const [products, setProducts] = useState<Product[]>(PRODUCTS);
+
+  useEffect(() => {
+    let isMounted = true;
+    fetchStorefrontProducts().then((liveProducts) => {
+      if (isMounted && liveProducts && liveProducts.length > 0) {
+        setProducts(liveProducts);
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const rawCategory = searchParams.get('category') as CategorySlug | 'all' | null;
   const activeCategory: CategorySlug | 'all' =
@@ -42,12 +57,12 @@ export const CataloguePage: React.FC = () => {
 
   const filteredProducts = useMemo(
     () =>
-      filterAndSortProducts(PRODUCTS, {
+      filterAndSortProducts(products, {
         searchQuery,
         categorySlug: activeCategory,
         sortBy: activeSort,
       }),
-    [searchQuery, activeCategory, activeSort]
+    [products, searchQuery, activeCategory, activeSort]
   );
 
   const updateParams = (updates: {
@@ -124,7 +139,7 @@ export const CataloguePage: React.FC = () => {
 
             <div className="text-xs text-[#69746D] font-mono-num shrink-0">
               Showing <strong className="text-[#202923]">{filteredProducts.length}</strong> of{' '}
-              <strong className="text-[#202923]">{PRODUCTS.length}</strong> sample products
+              <strong className="text-[#202923]">{products.length}</strong> products
             </div>
           </div>
         </div>
