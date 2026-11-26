@@ -3,99 +3,89 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { checkIsAdmin } from '../lib/supabase';
 import { ShieldAlert, Loader2, LogOut, ArrowLeft } from 'lucide-react';
+import { Button } from './ui';
 
 /**
  * Route protection guard for the DEX STORES Administrator Interface.
  *
- * Enforces two separate security barriers:
- * 1. Authentication Check: User must have an active Supabase session.
- * 2. Authorization Check: User MUST have `app_metadata.role = 'admin'`.
- *    Ordinary authenticated users without this metadata are explicitly blocked.
+ * Enforces:
+ * 1. Active authenticated Supabase session.
+ * 2. Trusted `app_metadata` administrator role verification.
  */
 export const AdminGuard: React.FC = () => {
-  const { user, isAdmin, isLoading, isConfigured, signOut } = useAuth();
+  const { user, isAdmin, isLoading, signOut } = useAuth();
   const location = useLocation();
 
-  // Safe live diagnostic trace
-  console.log('[DEX_AUTH_DIAG][AdminGuard] Render evaluation:', {
-    path: location.pathname,
-    isLoading,
-    isConfigured,
-    hasUser: Boolean(user),
-    userEmail: user?.email,
-    authContextIsAdmin: isAdmin,
-    liveCheckIsAdmin: checkIsAdmin(user),
-    app_metadata: user?.app_metadata,
-    user_metadata: user?.user_metadata,
-  });
-
-  // 1. Loading state while checking session
   if (isLoading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-[#F5FAF5] p-6 text-center">
-        <Loader2 className="w-8 h-8 text-[#123D2A] animate-spin mb-3" />
-        <h2 className="text-lg font-semibold text-[#123D2A]">Verifying Administrator Session</h2>
-        <p className="text-xs text-[#69746D] mt-1">DEX STORES Secure Admin Gateway</p>
+      <div className="min-h-dvh flex flex-col items-center justify-center bg-[#F7FAF8] p-6 text-center">
+        <div className="w-12 h-12 rounded-2xl bg-[#EAF5EE] border border-[#C6E5D2] flex items-center justify-center mb-3">
+          <Loader2 className="w-6 h-6 text-[#176B45] animate-spin" aria-hidden="true" />
+        </div>
+        <h2 className="text-base sm:text-lg font-bold text-[#123D2A]">
+          Verifying Administrator Session
+        </h2>
+        <p className="text-xs text-[#5C6B62] mt-1">DEX STORES Secure Gateway</p>
       </div>
     );
   }
 
-  // 2. Unauthenticated check -> Redirect to login
   if (!user) {
-    console.log('[DEX_AUTH_DIAG][AdminGuard] No user -> Redirecting to /admin/login');
     return <Navigate to="/admin/login" state={{ from: location }} replace />;
   }
 
-  // 3. Authenticated BUT not an authorized Administrator (Part B requirement)
   if (!isAdmin) {
     const liveAdminVerdict = checkIsAdmin(user);
 
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#F5FAF5] p-4">
-        <div className="bg-white p-8 rounded-xl shadow-md max-w-lg w-full border border-red-200 text-center space-y-4">
-          <div className="w-14 h-14 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto">
-            <ShieldAlert className="w-8 h-8" />
+      <div className="min-h-dvh flex items-center justify-center bg-[#F7FAF8] p-4">
+        <div className="bg-[#FFFFFF] p-6 sm:p-8 rounded-2xl shadow-md max-w-md w-full border border-[#E2EAE5] text-center space-y-5">
+          <div className="w-14 h-14 bg-red-50 border border-red-200 text-red-600 rounded-2xl flex items-center justify-center mx-auto">
+            <ShieldAlert className="w-7 h-7" aria-hidden="true" />
           </div>
 
           <div>
-            <h1 className="text-xl font-bold text-[#202923]">Access Denied</h1>
-            <p className="text-sm text-[#69746D] mt-2">
-              Your account (<span className="font-medium text-[#202923]">{user.email}</span>) is signed in,
+            <h1 className="text-xl font-bold text-[#17231C]">Access Denied</h1>
+            <p className="text-sm text-[#5C6B62] mt-2">
+              Your account (<span className="font-semibold text-[#17231C]">{user.email}</span>) is signed in,
               but does not possess the trusted administrator role.
             </p>
           </div>
 
-          <div className="p-3 bg-red-50 border border-red-200 rounded-md text-left text-xs text-red-800 space-y-1">
-            <p className="font-semibold">Security Policy Notice:</p>
+          <div className="p-3.5 bg-red-50/70 border border-red-200 rounded-xl text-left text-xs text-red-800 space-y-1">
+            <p className="font-semibold">Security Policy Notice</p>
             <p>
-              DEX STORES enforces strict Role-Based Access Control (RBAC). Administrator rights
-              must be provisioned in <code className="font-mono bg-red-100 px-1 rounded">app_metadata.role = 'admin'</code>.
+              Administrator permissions must be provisioned in{' '}
+              <code className="font-mono bg-red-100 px-1.5 py-0.5 rounded">app_metadata.role = 'admin'</code>.
             </p>
           </div>
 
-          {/* Diagnostic Inspection Box (Safe, No Tokens or Secrets) */}
-          <div className="p-3 bg-gray-900 text-green-400 font-mono text-[11px] rounded-md text-left space-y-1 overflow-x-auto border border-gray-800">
-            <p className="font-bold text-white border-b border-gray-700 pb-1">
-              [DIAGNOSTIC] Live Metadata Inspector
-            </p>
-            <p><span className="text-gray-400">AuthContext isAdmin:</span> <span className={isAdmin ? 'text-green-400' : 'text-red-400'}>{String(isAdmin)}</span></p>
-            <p><span className="text-gray-400">Live checkIsAdmin(user):</span> <span className={liveAdminVerdict ? 'text-green-400' : 'text-red-400'}>{String(liveAdminVerdict)}</span></p>
-            <p><span className="text-gray-400">app_metadata:</span> {JSON.stringify(user.app_metadata || {})}</p>
-            <p><span className="text-gray-400">user_metadata:</span> {JSON.stringify(user.user_metadata || {})}</p>
-          </div>
+          <details className="text-left text-xs border border-[#E2EAE5] rounded-xl p-3 bg-[#F7FAF8]">
+            <summary className="font-semibold text-[#5C6B62] cursor-pointer">
+              Diagnostic Metadata Details
+            </summary>
+            <div className="mt-2 font-mono text-[11px] text-[#17231C] space-y-1 overflow-x-auto">
+              <p>AuthContext isAdmin: {String(isAdmin)}</p>
+              <p>checkIsAdmin(user): {String(liveAdminVerdict)}</p>
+              <p>app_metadata: {JSON.stringify(user.app_metadata || {})}</p>
+            </div>
+          </details>
 
-          <div className="pt-2 flex flex-col sm:flex-row gap-2">
-            <button
+          <div className="pt-1 flex flex-col sm:flex-row gap-2.5">
+            <Button
+              variant="primary"
+              fullWidth
               onClick={() => signOut()}
-              className="flex-1 inline-flex items-center justify-center gap-2 bg-[#123D2A] text-white px-4 py-2.5 rounded-md hover:bg-[#0f2e1e] transition text-sm font-medium"
+              leftIcon={<LogOut className="w-4 h-4" aria-hidden="true" />}
             >
-              <LogOut className="w-4 h-4" /> Sign Out
-            </button>
+              Sign Out
+            </Button>
             <a
               href="/"
-              className="inline-flex items-center justify-center gap-2 border border-[#E5EBE6] text-[#69746D] px-4 py-2.5 rounded-md hover:bg-gray-50 transition text-sm"
+              className="inline-flex items-center justify-center gap-2 border border-[#E2EAE5] text-[#5C6B62] hover:bg-[#F7FAF8] hover:text-[#17231C] px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold min-h-[44px] dex-press"
             >
-              <ArrowLeft className="w-4 h-4" /> Storefront
+              <ArrowLeft className="w-4 h-4" aria-hidden="true" />
+              <span>Storefront</span>
             </a>
           </div>
         </div>
@@ -103,7 +93,5 @@ export const AdminGuard: React.FC = () => {
     );
   }
 
-  // 4. Authenticated & Authorized Administrator
-  console.log('[DEX_AUTH_DIAG][AdminGuard] Access GRANTED to Administrator:', user.email);
   return <Outlet />;
 };

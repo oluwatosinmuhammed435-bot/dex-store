@@ -88,9 +88,10 @@ export function calculateCartTotals(cart: CartItem[]): {
 /**
  * Builds a structured multi-item WhatsApp order message for all products in the customer's cart.
  */
-export function buildWhatsAppCartOrderMessage(cart: CartItem[]): string {
+export function buildWhatsAppCartOrderMessage(cart: CartItem[], brandName?: string): string {
+  const brand = brandName || STORE_CONFIG.brandName;
   if (cart.length === 0) {
-    return `Hello ${STORE_CONFIG.brandName}, I would like to enquire about your products.`;
+    return `Hello ${brand}, I would like to enquire about your products.`;
   }
 
   const { totalItems, subtotalNgn } = calculateCartTotals(cart);
@@ -102,7 +103,7 @@ export function buildWhatsAppCartOrderMessage(cart: CartItem[]): string {
   });
 
   return [
-    `Hello ${STORE_CONFIG.brandName}, I would like to place an order from my cart:`,
+    `Hello ${brand}, I would like to place an order from my cart:`,
     '',
     ...itemLines,
     '',
@@ -118,10 +119,11 @@ export function buildWhatsAppCartOrderMessage(cart: CartItem[]): string {
  */
 export function buildWhatsAppCartOrderUrl(
   cart: CartItem[],
-  phoneNumber: string = STORE_CONFIG.whatsappNumber
+  phoneNumber: string = STORE_CONFIG.whatsappNumber,
+  brandName?: string
 ): string {
   const cleanPhone = phoneNumber.replace(/[^0-9]/g, '');
-  const message = buildWhatsAppCartOrderMessage(cart);
+  const message = buildWhatsAppCartOrderMessage(cart, brandName);
   return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
 }
 
@@ -214,13 +216,14 @@ export interface WhatsAppOrderPayload {
 /**
  * Builds the plain-text WhatsApp order message for a customer's selected product and quantity.
  */
-export function buildWhatsAppOrderMessage(payload: WhatsAppOrderPayload): string {
+export function buildWhatsAppOrderMessage(payload: WhatsAppOrderPayload, brandName?: string): string {
+  const brand = brandName || STORE_CONFIG.brandName;
   const qty = Math.max(1, Math.floor(payload.quantity || 1));
   const unitPrice = formatNaira(payload.priceNgn);
   const totalPrice = formatNaira(payload.priceNgn * qty);
 
   const lines = [
-    `Hello ${STORE_CONFIG.brandName}, I would like to place an order:`,
+    `Hello ${brand}, I would like to place an order:`,
     '',
     `• Product: ${payload.productName}`,
     payload.reference ? `• Reference: ${payload.reference}` : null,
@@ -240,10 +243,11 @@ export function buildWhatsAppOrderMessage(payload: WhatsAppOrderPayload): string
  */
 export function buildWhatsAppOrderUrl(
   payload: WhatsAppOrderPayload,
-  phoneNumber: string = STORE_CONFIG.whatsappNumber
+  phoneNumber: string = STORE_CONFIG.whatsappNumber,
+  brandName?: string
 ): string {
   const cleanPhone = phoneNumber.replace(/[^0-9]/g, '');
-  const message = buildWhatsAppOrderMessage(payload);
+  const message = buildWhatsAppOrderMessage(payload, brandName);
   return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
 }
 
@@ -251,9 +255,10 @@ export function buildWhatsAppOrderUrl(
  * Generates a general customer enquiry WhatsApp click-to-chat URL.
  */
 export function buildWhatsAppGeneralUrl(
-  customMessage = `Hello ${STORE_CONFIG.brandName}, I have an enquiry regarding your product catalogue.`,
+  customMessage?: string,
   phoneNumber: string = STORE_CONFIG.whatsappNumber
 ): string {
+  const message = customMessage || `Hello ${STORE_CONFIG.brandName}, I have an enquiry regarding your product catalogue.`;
   const cleanPhone = phoneNumber.replace(/[^0-9]/g, '');
-  return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(customMessage)}`;
+  return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
 }

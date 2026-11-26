@@ -1,53 +1,22 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { RotateCcw, Search, SlidersHorizontal } from 'lucide-react';
-import {
-  CATEGORIES,
-  CategorySlug,
-  PRODUCTS,
-  STORE_CONFIG,
-  type Product,
-} from '../data/storeData';
-import {
-  filterAndSortProducts,
-  SortOption,
-} from '../utils/catalogue';
-import { fetchStorefrontProducts } from '../utils/productService';
+import { type Product } from '../data/storeData';
+import { filterAndSortProducts, SortOption } from '../utils/catalogue';
+import { useStoreData } from '../context/StoreDataContext';
 import { ProductCard } from '../components/ProductCard';
+import { ProductQuickViewModal } from '../components/ProductQuickViewModal';
+import { ProductCardSkeleton } from '../components/ui';
 
-const VALID_CATEGORIES: (CategorySlug | 'all')[] = [
-  'all',
-  'car-parts',
-  'toy-cars',
-  'other-products',
-];
-
-const VALID_SORTS: SortOption[] = [
-  'featured',
-  'newest',
-  'price-asc',
-  'price-desc',
-];
+const VALID_SORTS: SortOption[] = ['featured', 'newest', 'price-asc', 'price-desc'];
 
 export const CataloguePage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [products, setProducts] = useState<Product[]>(PRODUCTS);
+  const { products, categories, storeConfig, isLoading, hasLiveProducts } = useStoreData();
+  const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
 
-  useEffect(() => {
-    let isMounted = true;
-    fetchStorefrontProducts().then((liveProducts) => {
-      if (isMounted && liveProducts && liveProducts.length > 0) {
-        setProducts(liveProducts);
-      }
-    });
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  const rawCategory = searchParams.get('category') as CategorySlug | 'all' | null;
-  const activeCategory: CategorySlug | 'all' =
-    rawCategory && VALID_CATEGORIES.includes(rawCategory) ? rawCategory : 'all';
+  const rawCategory = searchParams.get('category');
+  const activeCategory: string = rawCategory && rawCategory.trim() ? rawCategory : 'all';
 
   const rawSort = searchParams.get('sort') as SortOption | null;
   const activeSort: SortOption =
@@ -67,7 +36,7 @@ export const CataloguePage: React.FC = () => {
 
   const updateParams = (updates: {
     q?: string;
-    category?: CategorySlug | 'all';
+    category?: string;
     sort?: SortOption;
   }) => {
     const next = new URLSearchParams(searchParams);
@@ -100,87 +69,85 @@ export const CataloguePage: React.FC = () => {
   };
 
   const handleResetAll = () => {
-    setSearchParams(new URLSearchParams(), { replace: true });
+    setSearchParams({}, { replace: true });
   };
 
   const activeCategoryName =
     activeCategory === 'all'
-      ? 'All Categories'
-      : CATEGORIES.find((c) => c.slug === activeCategory)?.name ?? 'All Categories';
+      ? 'Full Product Catalogue'
+      : categories.find((c) => c.slug === activeCategory)?.name ?? 'Filtered Catalogue';
 
   return (
-    <div className="bg-[#FFFFFF] min-h-[70vh]">
-      {/* Page Header & Breadcrumbs */}
-      <section className="bg-[#F8FAF8] border-b border-[#E5EBE6]">
-        <div className="max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-4">
-          <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-xs text-[#69746D]">
-            <Link to="/" className="hover:text-[#123D2A] transition-colors">
+    <div className="bg-[#FFFFFF]">
+      <ProductQuickViewModal
+        product={quickViewProduct}
+        onClose={() => setQuickViewProduct(null)}
+      />
+
+      {/* Page Header */}
+      <section className="bg-[#F7FAF8] border-b border-[#E2EAE5]">
+        <div className="max-w-[1200px] mx-auto px-3.5 sm:px-6 lg:px-8 py-6 sm:py-10 space-y-2.5">
+          <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-xs text-[#5C6B62]">
+            <Link to="/" className="hover:text-[#176B45]">
               Home
             </Link>
             <span aria-hidden="true">/</span>
-            <span className="text-[#202923] font-medium">Product Catalogue</span>
-            {activeCategory !== 'all' && (
-              <>
-                <span aria-hidden="true">/</span>
-                <span className="text-[#176B45] font-medium">{activeCategoryName}</span>
-              </>
-            )}
+            <span className="text-[#17231C] font-semibold">Shop</span>
           </nav>
 
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-            <div className="space-y-2">
-              <h1 className="text-2xl sm:text-3xl font-bold text-[#202923] tracking-tight">
-                {activeCategory === 'all' ? 'Product Catalogue' : activeCategoryName}
+          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+            <div className="space-y-1">
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-[#17231C] tracking-tight">
+                {activeCategoryName}
               </h1>
-              <p className="text-sm text-[#69746D] max-w-2xl">
-                Browse replacement car parts, die-cast and remote control vehicles, and utility equipment. Select any product to inspect specifications or place a WhatsApp order.
+              <p className="text-xs sm:text-sm text-[#5C6B62] max-w-2xl">
+                Browse automotive replacement components, die-cast &amp; remote control vehicles, and utility equipment.
               </p>
             </div>
 
-            <div className="text-xs text-[#69746D] font-mono-num shrink-0">
-              Showing <strong className="text-[#202923]">{filteredProducts.length}</strong> of{' '}
-              <strong className="text-[#202923]">{products.length}</strong> products
+            <div className="text-xs text-[#5C6B62] font-mono-num shrink-0 bg-[#FFFFFF] px-3 py-1.5 rounded-full border border-[#E2EAE5]">
+              Showing <strong className="text-[#123D2A]">{filteredProducts.length}</strong> of{' '}
+              <strong className="text-[#123D2A]">{products.length}</strong> items
             </div>
           </div>
         </div>
       </section>
 
       {/* Filter, Search & Sort Controls + Product Grid */}
-      <section className="max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-8">
-        {/* Sample Inventory Notice */}
-        <div className="px-4 py-3 bg-[#EAF3EC] border border-[#B8DCC5] rounded-md text-xs text-[#0E3021]">
-          {STORE_CONFIG.sampleInventoryNotice}
-        </div>
+      <section className="max-w-[1200px] mx-auto px-3 sm:px-6 lg:px-8 py-6 sm:py-10 space-y-6">
+        {!hasLiveProducts && storeConfig.sampleInventoryNotice && (
+          <div className="px-4 py-2.5 bg-[#EAF5EE] border border-[#C6E5D2] rounded-xl text-xs text-[#123D2A]">
+            {storeConfig.sampleInventoryNotice}
+          </div>
+        )}
 
         {/* Control Toolbar */}
-        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4 pb-6 border-b border-[#E5EBE6]">
-          {/* Category Filter Segmented Controls */}
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3.5 pb-5 border-b border-[#E2EAE5]">
+          {/* Horizontal Scrollable Category Pills on Mobile, Clean Wrap on Desktop */}
           <div
             role="group"
             aria-label="Filter products by category"
-            className="flex flex-wrap items-center gap-1.5 p-1 bg-[#F8FAF8] border border-[#E5EBE6] rounded-lg"
+            className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 sm:flex-wrap"
           >
             <button
               type="button"
               onClick={() => updateParams({ category: 'all' })}
-              className={`px-3.5 py-2 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 min-h-[36px] ${
-                activeCategory === 'all'
-                  ? 'bg-[#123D2A] text-[#FFFFFF]'
-                  : 'text-[#69746D] hover:text-[#202923]'
-              }`}
+              className={`px-4 py-2 text-xs font-semibold rounded-full transition-colors whitespace-nowrap shrink-0 min-h-[40px] dex-press ${activeCategory === 'all'
+                  ? 'bg-[#176B45] text-[#FFFFFF] shadow-2xs'
+                  : 'bg-[#F7FAF8] text-[#5C6B62] border border-[#E2EAE5] hover:border-[#B8DCC5] hover:text-[#123D2A]'
+                }`}
             >
               All Products
             </button>
-            {CATEGORIES.map((cat) => (
+            {categories.map((cat) => (
               <button
                 key={cat.id}
                 type="button"
                 onClick={() => updateParams({ category: cat.slug })}
-                className={`px-3.5 py-2 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 min-h-[36px] ${
-                  activeCategory === cat.slug
-                    ? 'bg-[#123D2A] text-[#FFFFFF]'
-                    : 'text-[#69746D] hover:text-[#202923]'
-                }`}
+                className={`px-4 py-2 text-xs font-semibold rounded-full transition-colors whitespace-nowrap shrink-0 min-h-[40px] dex-press ${activeCategory === cat.slug
+                    ? 'bg-[#176B45] text-[#FFFFFF] shadow-2xs'
+                    : 'bg-[#F7FAF8] text-[#5C6B62] border border-[#E2EAE5] hover:border-[#B8DCC5] hover:text-[#123D2A]'
+                  }`}
               >
                 {cat.name}
               </button>
@@ -188,35 +155,38 @@ export const CataloguePage: React.FC = () => {
           </div>
 
           {/* Search Input & Sorting Select */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
             <div className="relative flex-1 sm:w-64">
               <label htmlFor="catalogue-search" className="sr-only">
                 Search products
               </label>
-              <Search className="w-4 h-4 text-[#69746D] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <Search
+                className="w-4 h-4 text-[#5C6B62] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
+                aria-hidden="true"
+              />
               <input
                 id="catalogue-search"
                 type="search"
                 value={searchQuery}
                 onChange={(e) => updateParams({ q: e.target.value })}
-                placeholder="Search name or SKU..."
-                className="w-full pl-9 pr-3 py-2 text-xs sm:text-sm bg-[#FFFFFF] border border-[#E5EBE6] rounded-md text-[#202923] placeholder:text-[#69746D] focus:outline-none focus:border-[#176B45] min-h-[40px]"
+                placeholder="Search name or SKU…"
+                className="w-full pl-9 pr-3.5 py-2 text-xs sm:text-sm bg-[#FFFFFF] border border-[#E2EAE5] rounded-xl text-[#17231C] placeholder:text-[#7B8A80] focus:outline-none focus:border-[#176B45] min-h-[44px]"
               />
             </div>
 
             <div className="flex items-center gap-2">
               <label
                 htmlFor="catalogue-sort"
-                className="inline-flex items-center gap-1.5 text-xs font-medium text-[#69746D] whitespace-nowrap shrink-0"
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-[#5C6B62] whitespace-nowrap shrink-0"
               >
-                <SlidersHorizontal className="w-3.5 h-3.5" />
-                <span>Sort by:</span>
+                <SlidersHorizontal className="w-3.5 h-3.5" aria-hidden="true" />
+                <span>Sort:</span>
               </label>
               <select
                 id="catalogue-sort"
                 value={activeSort}
                 onChange={(e) => updateParams({ sort: e.target.value as SortOption })}
-                className="px-3 py-2 text-xs sm:text-sm bg-[#FFFFFF] border border-[#E5EBE6] rounded-md text-[#202923] font-medium focus:outline-none focus:border-[#176B45] min-h-[40px]"
+                className="flex-1 sm:flex-initial px-3.5 py-2 text-xs sm:text-sm bg-[#FFFFFF] border border-[#E2EAE5] rounded-xl text-[#17231C] font-medium focus:outline-none focus:border-[#176B45] min-h-[44px]"
               >
                 <option value="featured">Featured</option>
                 <option value="newest">Newest</option>
@@ -228,18 +198,26 @@ export const CataloguePage: React.FC = () => {
         </div>
 
         {/* Product Grid or Empty State */}
-        {filteredProducts.length > 0 ? (
+        {isLoading && filteredProducts.length === 0 ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-4">
+            {Array.from({ length: 8 }).map((_, idx) => (
+              <ProductCardSkeleton key={idx} />
+            ))}
+          </div>
+        ) : filteredProducts.length > 0 ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-4">
             {filteredProducts.map((product) => (
-              <ProductCard key={product.id} product={product} />
+              <ProductCard
+                key={product.id}
+                product={product}
+                onQuickView={setQuickViewProduct}
+              />
             ))}
           </div>
         ) : (
-          <div className="py-16 px-6 text-center bg-[#F8FAF8] border border-[#E5EBE6] rounded-lg max-w-lg mx-auto my-6 space-y-4">
-            <h2 className="text-lg font-semibold text-[#202923]">
-              No matching products found
-            </h2>
-            <p className="text-sm text-[#69746D] leading-relaxed">
+          <div className="py-16 px-6 text-center bg-[#F7FAF8] border border-[#E2EAE5] rounded-2xl max-w-lg mx-auto my-6 space-y-4">
+            <h2 className="text-lg font-bold text-[#17231C]">No matching products found</h2>
+            <p className="text-sm text-[#5C6B62] leading-relaxed">
               No products matched your current filter or search query{' '}
               {searchQuery ? `"${searchQuery}"` : ''}. Try clearing your search or switching to another category.
             </p>
@@ -247,9 +225,9 @@ export const CataloguePage: React.FC = () => {
               <button
                 type="button"
                 onClick={handleResetAll}
-                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-xs font-semibold text-[#FFFFFF] bg-[#123D2A] rounded-md hover:bg-[#176B45] transition-colors min-h-[40px]"
+                className="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-xs font-semibold text-[#FFFFFF] bg-[#176B45] rounded-xl hover:bg-[#123D2A] min-h-[44px] dex-press"
               >
-                <RotateCcw className="w-3.5 h-3.5" />
+                <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
                 <span>Reset Search &amp; Filters</span>
               </button>
             </div>

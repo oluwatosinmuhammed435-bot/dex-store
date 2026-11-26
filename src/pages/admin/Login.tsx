@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { Lock, User, Loader2, AlertCircle, Info, ArrowLeft } from 'lucide-react';
+import { Lock, User, AlertCircle, Info, ArrowLeft } from 'lucide-react';
+import { Button, Input } from '../../components/ui';
 
 export const AdminLogin: React.FC = () => {
   const navigate = useNavigate();
@@ -13,7 +14,6 @@ export const AdminLogin: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // If already logged in with admin privileges, redirect immediately
   React.useEffect(() => {
     if (user && isAdmin) {
       const target = (location.state as { from?: { pathname?: string } })?.from?.pathname || '/admin';
@@ -21,136 +21,125 @@ export const AdminLogin: React.FC = () => {
     }
   }, [user, isAdmin, navigate, location]);
 
+  const formatAuthError = (message: string): string => {
+    const lower = message.toLowerCase();
+    if (lower.includes('invalid login credentials')) {
+      return 'Invalid email or password. Please verify your administrator credentials in Supabase Auth.';
+    }
+    if (lower.includes('email not confirmed')) {
+      return 'Your email address is not confirmed yet. Open Supabase Dashboard → Authentication → Users and confirm this account (or enable Auto Confirm when inviting).';
+    }
+    if (lower.includes('failed to fetch') || lower.includes('network')) {
+      return 'Unable to reach Supabase authentication service. Check your internet connection and VITE_SUPABASE_URL configuration.';
+    }
+    return message;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
     setIsSubmitting(true);
 
-    console.log('[DEX_AUTH_DIAG][AdminLogin] Submitting login form for:', email.trim());
     const { error, isAdmin: userIsAdmin } = await signInWithEmail(email.trim(), password);
-
     setIsSubmitting(false);
 
-    console.log('[DEX_AUTH_DIAG][AdminLogin] signInWithEmail returned:', {
-      hasError: Boolean(error),
-      errorMessage: error?.message,
-      userIsAdmin,
-    });
-
     if (error) {
-      setErrorMessage(error.message);
+      setErrorMessage(formatAuthError(error.message));
       return;
     }
 
     if (!userIsAdmin) {
-      // User authenticated, but not authorized as admin.
-      // Navigate to /admin where AdminGuard will display the explicit RBAC Access Denied screen.
-      console.warn('[DEX_AUTH_DIAG][AdminLogin] userIsAdmin is FALSE -> Navigating to /admin for Access Denied screen');
       navigate('/admin');
       return;
     }
 
-    // Success — redirect to destination or dashboard
     const target = (location.state as { from?: { pathname?: string } })?.from?.pathname || '/admin';
-    console.log('[DEX_AUTH_DIAG][AdminLogin] userIsAdmin is TRUE -> Navigating to:', target);
     navigate(target, { replace: true });
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#F5FAF5] p-4">
-      <div className="bg-white p-8 rounded-xl shadow-md w-full max-w-md border border-[#E0E0E0] space-y-6">
-        <div className="text-center">
-          <Link to="/" className="inline-block">
-            <span className="text-2xl font-bold text-[#123D2A] tracking-wide">DEX STORES</span>
+    <div className="min-h-dvh flex items-center justify-center bg-gradient-to-b from-[#EFF8F2] to-[#F7FAF8] p-4">
+      <div className="bg-[#FFFFFF] p-6 sm:p-8 rounded-2xl shadow-md w-full max-w-md border border-[#E2EAE5] space-y-6">
+        <div className="text-center space-y-2">
+          <Link to="/" className="inline-flex items-center gap-2.5">
+            <span className="w-9 h-9 rounded-xl bg-[#176B45] text-[#FFFFFF] font-display font-bold text-base inline-flex items-center justify-center shadow-2xs">
+              D
+            </span>
+            <span className="text-xl font-extrabold text-[#123D2A] tracking-tight">DEX STORES</span>
           </Link>
-          <h1 className="text-lg font-semibold text-[#202923] mt-2">Administrator Sign In</h1>
-          <p className="text-xs text-[#69746D] mt-0.5">Secure Role-Protected Management Portal</p>
+          <div>
+            <h1 className="text-lg font-bold text-[#17231C]">Administrator Sign In</h1>
+            <p className="text-xs text-[#5C6B62] mt-0.5">Secure Store Management Gateway</p>
+          </div>
         </div>
 
-        {/* Configuration notice if Supabase keys are not yet configured in .env */}
         {!isConfigured && (
-          <div className="flex items-start gap-2.5 p-3.5 bg-amber-50 border border-amber-200 rounded-lg text-amber-900 text-xs">
-            <Info className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+          <div className="flex items-start gap-2.5 p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-xs">
+            <Info className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" aria-hidden="true" />
             <div>
               <p className="font-semibold">Supabase Environment Notice</p>
               <p className="mt-0.5 text-amber-800">
-                Live Supabase credentials are not yet configured in your <code className="font-mono bg-amber-100 px-1 rounded">.env</code> file.
-                Add <code className="font-mono bg-amber-100 px-1 rounded">VITE_SUPABASE_URL</code> and <code className="font-mono bg-amber-100 px-1 rounded">VITE_SUPABASE_ANON_KEY</code> to enable live authentication.
+                Add <code className="font-mono bg-amber-100 px-1 rounded">VITE_SUPABASE_URL</code> and{' '}
+                <code className="font-mono bg-amber-100 px-1 rounded">VITE_SUPABASE_ANON_KEY</code> to enable live authentication.
               </p>
             </div>
           </div>
         )}
 
-        {/* Error message */}
         {errorMessage && (
-          <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-md text-red-700 text-xs">
-            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-            <p className="flex-1">{errorMessage}</p>
+          <div
+            role="alert"
+            className="flex items-start gap-2.5 p-3.5 bg-red-50 border border-red-200 rounded-xl text-red-700 text-xs"
+          >
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
+            <p className="flex-1 font-medium">{errorMessage}</p>
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-[#202923] mb-1.5">
-              Email Address
-            </label>
-            <div className="relative">
-              <User className="absolute left-3 top-2.5 h-4 w-4 text-[#999]" />
-              <input
-                type="email"
-                required
-                autoComplete="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                placeholder="admin@dexstores.com"
-                className="w-full pl-10 pr-3 py-2.5 border rounded-md focus:outline-none focus:ring-2 focus:ring-[#123D2A] text-sm"
-              />
-            </div>
-          </div>
+          <Input
+            label="Email Address"
+            type="email"
+            required
+            autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="admin@dexstores.com"
+            leftIcon={<User className="w-4 h-4" aria-hidden="true" />}
+          />
 
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-[#202923] mb-1.5">
-              Password
-            </label>
-            <div className="relative">
-              <Lock className="absolute left-3 top-2.5 h-4 w-4 text-[#999]" />
-              <input
-                type="password"
-                required
-                autoComplete="current-password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder="••••••••••••"
-                className="w-full pl-10 pr-3 py-2.5 border rounded-md focus:outline-none focus:ring-2 focus:ring-[#123D2A] text-sm"
-              />
-            </div>
-          </div>
+          <Input
+            label="Password"
+            type="password"
+            required
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="••••••••••••"
+            leftIcon={<Lock className="w-4 h-4" aria-hidden="true" />}
+          />
 
-          <button
+          <Button
             type="submit"
-            disabled={isSubmitting}
-            className="w-full flex items-center justify-center gap-2 bg-[#123D2A] text-white py-2.5 rounded-md hover:bg-[#0f2e1e] transition font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+            variant="primary"
+            size="lg"
+            fullWidth
+            isLoading={isSubmitting}
           >
-            {isSubmitting ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Authenticating…</span>
-              </>
-            ) : (
-              <span>Sign In as Administrator</span>
-            )}
-          </button>
+            {isSubmitting ? 'Authenticating…' : 'Sign In as Administrator'}
+          </Button>
         </form>
 
-        <div className="pt-4 border-t border-[#E0E0E0] text-center space-y-2">
-          <p className="text-[11px] text-[#69746D]">
-            Administrator permissions require <code className="font-mono bg-gray-100 px-1 py-0.5 rounded text-[#202923]">app_metadata.role = 'admin'</code>.
+        <div className="pt-4 border-t border-[#E2EAE5] text-center space-y-2.5">
+          <p className="text-[11px] text-[#5C6B62]">
+            Requires <code className="font-mono bg-[#F2F6F3] px-1.5 py-0.5 rounded text-[#17231C]">app_metadata.role = 'admin'</code>.
           </p>
           <Link
             to="/"
-            className="inline-flex items-center gap-1.5 text-xs text-[#123D2A] hover:underline font-medium"
+            className="inline-flex items-center gap-1.5 text-xs text-[#176B45] hover:text-[#123D2A] hover:underline font-semibold"
           >
-            <ArrowLeft className="w-3.5 h-3.5" /> Return to Customer Storefront
+            <ArrowLeft className="w-3.5 h-3.5" aria-hidden="true" />
+            <span>Return to Storefront</span>
           </Link>
         </div>
       </div>

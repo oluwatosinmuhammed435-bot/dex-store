@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Package } from 'lucide-react';
 
 export interface ProductImageProps {
@@ -20,12 +20,12 @@ export interface ProductImageProps {
 /**
  * DEX STORES High-Performance Responsive Image Component
  *
- * Implements:
- * - Native responsive srcset and sizes resolution
- * - LCP prioritization (fetchpriority="high", loading="eager")
- * - Native lazy loading and asynchronous decoding for below-the-fold images
- * - Cumulative Layout Shift (CLS) prevention via aspect ratio containers
- * - Resilient placeholder fallback on missing or failed images
+ * Features:
+ * - Zero CLS aspect-ratio frame with subtle green shimmer placeholder while decoding
+ * - Native responsive srcset and sizes support
+ * - Smooth fade-in reveal upon load completion
+ * - Resets error/load states cleanly when `src` changes (e.g., gallery or quick-view switch)
+ * - Clean accessible fallback UI when image is unavailable
  */
 export const ProductImage: React.FC<ProductImageProps> = ({
   src,
@@ -43,33 +43,43 @@ export const ProductImage: React.FC<ProductImageProps> = ({
   onError,
 }) => {
   const [hasError, setHasError] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false);
 
-  // Fallback placeholder with accessible role and label
+  useEffect(() => {
+    setHasError(false);
+    setIsLoaded(false);
+  }, [src]);
+
   if (hasError || !src) {
     return (
       <div
-        className={`relative flex flex-col items-center justify-center bg-[#EAF3EC] text-[#123D2A] p-6 select-none overflow-hidden ${aspectClassName} ${className}`}
+        className={`relative flex flex-col items-center justify-center bg-[#EAF5EE] text-[#123D2A] p-4 select-none overflow-hidden ${aspectClassName} ${className}`}
         role="img"
         aria-label={alt}
       >
-        <Package className="w-8 h-8 text-[#176B45] mb-2 stroke-[1.5]" />
-        <span className="text-xs font-medium text-[#0E3021] text-center max-w-[20ch] line-clamp-2">
+        <div className="w-10 h-10 rounded-full bg-[#FFFFFF] border border-[#C6E5D2] flex items-center justify-center mb-2 shadow-2xs">
+          <Package className="w-5 h-5 text-[#176B45] stroke-[1.6]" aria-hidden="true" />
+        </div>
+        <span className="text-[11px] font-medium text-[#123D2A] text-center max-w-[20ch] line-clamp-2">
           {alt}
         </span>
       </div>
     );
   }
 
-  // Derive network priority & loading semantics
   const effectiveLoading: 'eager' | 'lazy' = priority ? 'eager' : 'lazy';
   const effectiveFetchPriority: 'high' | 'low' | 'auto' =
     fetchPriority ?? (priority ? 'high' : 'auto');
   const effectiveDecoding: 'async' | 'sync' | 'auto' =
     decoding ?? (priority ? 'sync' : 'async');
 
-  // Default responsive sizes when srcSet is passed without explicit sizes
   const effectiveSizes =
     sizes || (srcSet ? '(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw' : undefined);
+
+  const handleLoad = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+    setIsLoaded(true);
+    onLoad?.(e);
+  };
 
   const handleError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
     setHasError(true);
@@ -77,7 +87,13 @@ export const ProductImage: React.FC<ProductImageProps> = ({
   };
 
   return (
-    <div className={`relative overflow-hidden bg-[#F8FAF8] ${aspectClassName}`}>
+    <div className={`relative overflow-hidden bg-[#F2F6F3] ${aspectClassName}`}>
+      {!isLoaded && (
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 bg-[#EAF5EE]/75 motion-safe:animate-pulse"
+        />
+      )}
       <img
         src={src}
         srcSet={srcSet}
@@ -90,8 +106,10 @@ export const ProductImage: React.FC<ProductImageProps> = ({
         decoding={effectiveDecoding}
         referrerPolicy="no-referrer"
         onError={handleError}
-        onLoad={onLoad}
-        className={`w-full h-full object-cover transition-transform duration-200 ease-out ${className}`}
+        onLoad={handleLoad}
+        className={`w-full h-full object-cover transition-[opacity,transform] duration-300 ease-out ${
+          isLoaded || priority ? 'opacity-100' : 'opacity-0'
+        } ${className}`}
       />
     </div>
   );

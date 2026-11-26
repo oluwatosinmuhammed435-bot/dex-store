@@ -1,6 +1,6 @@
-export type CategorySlug = 'car-parts' | 'toy-cars' | 'other-products';
+export type CategorySlug = 'car-parts' | 'toy-cars' | 'other-products' | (string & {});
 
-export type CategoryName = 'Car Parts' | 'Toy Cars' | 'Other Products';
+export type CategoryName = 'Car Parts' | 'Toy Cars' | 'Other Products' | (string & {});
 
 export type AvailabilityStatus = 'In Stock' | 'Available on Order' | 'Out of Stock';
 
@@ -12,6 +12,8 @@ export interface CategoryItem {
   editorialSummary: string;
   image: string;
   highlights: string[];
+  isActive?: boolean;
+  isSample?: boolean;
 }
 
 export interface ProductSpecification {
@@ -26,11 +28,16 @@ export interface Product {
   name: string;
   category: CategoryName;
   categorySlug: CategorySlug;
+  categoryId?: string | null;
   priceNgn: number;
+  stockQuantity?: number;
   availability: AvailabilityStatus;
   featured: boolean;
   recentlyAdded: boolean;
+  isActive?: boolean;
+  isSample?: boolean;
   createdAtOrder: number;
+  updatedAt?: string | null;
   shortDescription: string;
   description: string;
   image: string;
